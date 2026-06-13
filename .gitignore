@@ -1,0 +1,14 @@
+node_modules/
+.next/
+bin/
+obj/
+TestResults/
+*.user
+*.suo
+*.tsbuildinfo
+.env
+dist/
+coverage/
+*.log
+artifacts/
+.tools/

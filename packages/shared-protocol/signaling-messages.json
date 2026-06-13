@@ -1,0 +1,39 @@
+{
+  "clientToServer": [
+    "auth.authenticate",
+    "device.online",
+    "device.offline",
+    "session.request",
+    "session.approve",
+    "session.reject",
+    "session.end",
+    "webrtc.offer",
+    "webrtc.answer",
+    "webrtc.iceCandidate",
+    "control.mouseMove",
+    "control.mouseDown",
+    "control.mouseUp",
+    "control.mouseWheel",
+    "control.keyDown",
+    "control.keyUp",
+    "clipboard.updateRequest",
+    "fileTransfer.request"
+  ],
+  "serverToClient": [
+    "auth.authenticated",
+    "auth.failed",
+    "device.statusChanged",
+    "session.incomingRequest",
+    "session.approved",
+    "session.rejected",
+    "session.started",
+    "session.ended",
+    "webrtc.offer",
+    "webrtc.answer",
+    "webrtc.iceCandidate",
+    "control.enabled",
+    "control.disabled",
+    "security.warning",
+    "error"
+  ]
+}

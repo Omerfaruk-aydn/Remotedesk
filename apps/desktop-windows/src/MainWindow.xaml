@@ -1,0 +1,524 @@
+<Window x:Class="SecureRemoteDesk.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecureRemoteDesk.Desktop.ViewModels"
+        Title="SecureRemoteDesk" Width="1440" Height="900" MinWidth="1120" MinHeight="720"
+        Background="#F6F8FB">
+    <Window.DataContext>
+        <vm:ShellViewModel />
+    </Window.DataContext>
+    <Window.Resources>
+        <SolidColorBrush x:Key="Navy" Color="#06233F" />
+        <SolidColorBrush x:Key="Navy2" Color="#092C50" />
+        <SolidColorBrush x:Key="Blue" Color="#0B63CE" />
+        <SolidColorBrush x:Key="Border" Color="#D8DEE8" />
+        <SolidColorBrush x:Key="Text" Color="#14233B" />
+        <SolidColorBrush x:Key="Muted" Color="#5C677A" />
+
+        <Style x:Key="SidebarButton" TargetType="Button">
+            <Setter Property="Height" Value="52" />
+            <Setter Property="Margin" Value="0,4" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#173E66" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="20,0" />
+            <Setter Property="Background" Value="{StaticResource Blue}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="{StaticResource Blue}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="BorderBrush" Value="#C9D1DE" />
+        </Style>
+
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Background" Value="#DC2626" />
+            <Setter Property="BorderBrush" Value="#DC2626" />
+        </Style>
+
+        <Style x:Key="Field" TargetType="TextBox">
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="BorderBrush" Value="#C9D1DE" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="White" BorderBrush="#CFD6E2" BorderThickness="0,0,0,1">
+            <DockPanel Margin="16,0">
+                <TextBlock Text="SecureRemoteDesk" VerticalAlignment="Center" FontSize="14" Foreground="#111827" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="-" Margin="14,0" FontSize="18" />
+                    <TextBlock Text="□" Margin="14,0" FontSize="15" />
+                    <TextBlock Text="×" Margin="14,0" FontSize="18" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="292" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource Navy}">
+                <Grid Margin="22">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,34">
+                        <TextBlock Text="▣" Foreground="White" FontSize="28" Margin="0,0,12,0" />
+                        <TextBlock Text="SecureRemoteDesk" Foreground="White" FontWeight="SemiBold" FontSize="20" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="1">
+                        <Button Style="{StaticResource SidebarButton}" Content="▣  Bu Bilgisayarı Paylaş" Command="{Binding ShowHostCommand}" Background="{Binding HostNavBrush}" />
+                        <Button Style="{StaticResource SidebarButton}" Content="▣  Bağlan" Command="{Binding ShowViewerCommand}" Background="{Binding ViewerNavBrush}" />
+                        <Button Style="{StaticResource SidebarButton}" Content="▤  Cihazlar" Command="{Binding ShowDevicesCommand}" Background="{Binding DevicesNavBrush}" />
+                        <Button Style="{StaticResource SidebarButton}" Content="◷  Oturumlar" Command="{Binding ShowSessionsCommand}" Background="{Binding SessionsNavBrush}" />
+                        <Button Style="{StaticResource SidebarButton}" Content="▭  Dosya Aktarımı" Command="{Binding ShowFileTransferCommand}" Background="{Binding FileTransferNavBrush}" />
+                        <Button Style="{StaticResource SidebarButton}" Content="◇  Güvenlik Logları" Command="{Binding ShowSecurityCommand}" Background="{Binding SecurityNavBrush}" />
+                        <Button Style="{StaticResource SidebarButton}" Content="⚙  Ayarlar" Command="{Binding ShowSettingsCommand}" Background="{Binding SettingsNavBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" Margin="0,0,0,8">
+                        <TextBlock Text="SecureRemoteDesk v2.4.1" Foreground="#D5E0EE" FontSize="14" />
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Ellipse Width="10" Height="10" Fill="#22C55E" Margin="0,0,8,0" />
+                            <TextBlock Text="Güncel" Foreground="#D5E0EE" FontSize="14" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="78" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0" Background="White" BorderBrush="#E0E5EE" BorderThickness="0,0,0,1">
+                    <DockPanel Margin="28,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="10" Height="10" Fill="#22C55E" Margin="0,0,12,0" />
+                            <TextBlock Text="Cihaz: Online" Foreground="{StaticResource Muted}" FontSize="15" Margin="0,0,46,0" />
+                            <Ellipse Width="10" Height="10" Fill="#22C55E" Margin="0,0,12,0" />
+                            <TextBlock Text="API: Bağlı" Foreground="{StaticResource Muted}" FontSize="15" Margin="0,0,46,0" />
+                            <Ellipse Width="10" Height="10" Fill="{Binding SessionDotBrush}" Margin="0,0,12,0" />
+                            <TextBlock Text="{Binding TopSessionText}" Foreground="{StaticResource Muted}" FontSize="15" />
+                        </StackPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="⌂" FontSize="22" Margin="14,0" Foreground="#2B3548" />
+                            <TextBlock Text="?" FontSize="22" Margin="14,0" Foreground="#2B3548" />
+                            <TextBlock Text="○" FontSize="22" Margin="14,0" Foreground="#2B3548" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <Grid Grid.Row="1">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <Grid Margin="28">
+                            <StackPanel Visibility="{Binding HostVisibility}">
+                                <TextBlock Text="Bu Bilgisayarı Paylaş" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource Text}" />
+                                <TextBlock Text="Bu cihazı uzaktan erişim için paylaşın. Bağlantı başlamadan önce onayınız gerekir." Foreground="{StaticResource Muted}" Margin="0,8,0,26" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="0.92*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Cihaz Adı" FontWeight="SemiBold" FontSize="16" />
+                                                <Border Background="#DCFCE7" CornerRadius="4" Padding="10,4" Margin="16,0,0,0">
+                                                    <TextBlock Text="Online" Foreground="#15803D" FontWeight="SemiBold" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="OFIS-PC-24" FontSize="24" FontWeight="SemiBold" Margin="0,12,0,22" />
+                                            <TextBlock Text="Bağlantı Kodu" FontWeight="SemiBold" />
+                                            <Border BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="6" Padding="18" Margin="0,10,0,14">
+                                                <TextBlock Text="{Binding PairingCode}" FontFamily="Consolas" FontSize="30" Foreground="#0B1F3A" />
+                                            </Border>
+                                            <WrapPanel>
+                                                <Button Style="{StaticResource SecondaryButton}" Content="Kodu Kopyala" Command="{Binding CopyCodeCommand}" Margin="0,0,10,0" />
+                                                <Button Style="{StaticResource SecondaryButton}" Content="Kodu Yenile" Command="{Binding RefreshCodeCommand}" />
+                                            </WrapPanel>
+                                            <Separator Margin="0,24,0,20" />
+                                            <TextBlock Text="Durum" FontWeight="SemiBold" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                                <TextBlock Text="◌" Foreground="{StaticResource Blue}" FontSize="34" Width="54" />
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding HostStatusTitle}" Foreground="{StaticResource Blue}" FontSize="18" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding IncomingRequestText}" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,22,0,0">
+                                                <TextBlock Text="Güvenlik: Bağlantı başlamadan önce onayınız gerekir." Foreground="#1D4ED8" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="2" Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="Varsayılan İzinler" FontSize="18" FontWeight="SemiBold" />
+                                            <TextBlock Text="Uzaktan bağlanan kullanıcılar için varsayılan izin ayarları." Foreground="{StaticResource Muted}" Margin="0,8,0,20" />
+                                            <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+                                                <DockPanel><TextBlock Text="Ekran görüntüleme" /><Border DockPanel.Dock="Right" Background="#DCFCE7" CornerRadius="4" Padding="10,4"><TextBlock Text="Açık" Foreground="#15803D" /></Border></DockPanel>
+                                            </Border>
+                                            <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+                                                <DockPanel><TextBlock Text="Uzaktan kontrol" /><Border DockPanel.Dock="Right" Background="#FEF3C7" CornerRadius="4" Padding="10,4"><TextBlock Text="Onay gerekli" Foreground="#B45309" /></Border></DockPanel>
+                                            </Border>
+                                            <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+                                                <DockPanel><TextBlock Text="Dosya aktarımı" /><Border DockPanel.Dock="Right" Background="#FEE2E2" CornerRadius="4" Padding="10,4"><TextBlock Text="Kapalı" Foreground="#DC2626" /></Border></DockPanel>
+                                            </Border>
+                                            <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="16">
+                                                <DockPanel><TextBlock Text="Clipboard" /><Border DockPanel.Dock="Right" Background="#FEE2E2" CornerRadius="4" Padding="10,4"><TextBlock Text="Kapalı" Foreground="#DC2626" /></Border></DockPanel>
+                                            </Border>
+                                            <Button Style="{StaticResource SecondaryButton}" Content="İzinleri Düzenle" Margin="0,28,0,0" HorizontalAlignment="Left" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <Border Style="{StaticResource Card}" Margin="0,28,0,0" Padding="18">
+                                    <TextBlock Text="Bu bilgisayara SecureRemoteDesk uygulaması yüklü olmalıdır ve ağ bağlantısı aktif olmalıdır." Foreground="#365899" />
+                                </Border>
+                                <Grid Margin="0,28,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.45*" />
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="0.85*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="Son Oturumlar" FontSize="18" FontWeight="SemiBold" />
+                                            <Grid Margin="0,24,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.4*" />
+                                                    <ColumnDefinition Width="1.2*" />
+                                                    <ColumnDefinition Width="1.3*" />
+                                                    <ColumnDefinition Width="0.8*" />
+                                                    <ColumnDefinition Width="0.8*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Kullanıcı" FontWeight="SemiBold" />
+                                                <TextBlock Grid.Column="1" Text="Cihaz" FontWeight="SemiBold" />
+                                                <TextBlock Grid.Column="2" Text="Başlangıç Zamanı" FontWeight="SemiBold" />
+                                                <TextBlock Grid.Column="3" Text="Süre" FontWeight="SemiBold" />
+                                                <TextBlock Grid.Column="4" Text="Durum" FontWeight="SemiBold" />
+                                            </Grid>
+                                            <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" MinHeight="190" Margin="0,10,0,0">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,48,0,0">
+                                                    <TextBlock Text="Henüz oturum kaydı bulunmuyor." Foreground="{StaticResource Muted}" HorizontalAlignment="Center" />
+                                                    <TextBlock Text="Oturumlar sayfasına gidin." Foreground="{StaticResource Blue}" HorizontalAlignment="Center" Margin="0,10,0,0" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                    <StackPanel Grid.Column="2">
+                                        <Border Style="{StaticResource Card}" Margin="0,0,0,22">
+                                            <StackPanel>
+                                                <TextBlock Text="Hızlı İşlemler" FontSize="18" FontWeight="SemiBold" />
+                                                <TextBlock Text="Erişim daveti oluştur" FontWeight="SemiBold" Margin="0,24,0,4" />
+                                                <TextBlock Text="Başka bir kullanıcıyı bu cihaza erişmesi için davet edin." Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                                                <Separator Margin="0,18" />
+                                                <TextBlock Text="Bağlantı ayarları" FontWeight="SemiBold" />
+                                                <TextBlock Text="Erişim ve güvenlik ayarlarını düzenleyin." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                                <Separator Margin="0,18" />
+                                                <TextBlock Text="Güvenlik ayarları" FontWeight="SemiBold" />
+                                                <TextBlock Text="Kimlerin bağlanabileceğini yönetin." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource Card}">
+                                            <StackPanel>
+                                                <TextBlock Text="Cihaz Bilgileri" FontSize="18" FontWeight="SemiBold" />
+                                                <Grid Margin="0,22,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="1*" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions><TextBlock Text="Cihaz Adı" Foreground="{StaticResource Muted}" /><TextBlock Grid.Column="1" Text="DESKTOP-7G8F2K1" /></Grid>
+                                                <Separator Margin="0,12" />
+                                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1*" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions><TextBlock Text="Kullanıcı" Foreground="{StaticResource Muted}" /><TextBlock Grid.Column="1" Text="administrator" /></Grid>
+                                                <Separator Margin="0,12" />
+                                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1*" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions><TextBlock Text="İşletim Sistemi" Foreground="{StaticResource Muted}" /><TextBlock Grid.Column="1" Text="Windows 11 Pro 64-bit" /></Grid>
+                                                <Separator Margin="0,12" />
+                                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1*" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions><TextBlock Text="Yerel IP" Foreground="{StaticResource Muted}" /><TextBlock Grid.Column="1" Text="{Binding PairingCode}" /></Grid>
+                                                <Separator Margin="0,12" />
+                                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1*" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions><TextBlock Text="Agent Sürümü" Foreground="{StaticResource Muted}" /><TextBlock Grid.Column="1" Text="2.4.1" /></Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding ViewerVisibility}">
+                                <TextBlock Text="Başka Bilgisayara Bağlan" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource Text}" />
+                                <TextBlock Text="Başka bir bilgisayara bağlanmak için host bağlantı kodunu girin." Foreground="{StaticResource Muted}" Margin="0,8,0,26" />
+                                <Border Style="{StaticResource Card}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.05*" />
+                                            <ColumnDefinition Width="30" />
+                                            <ColumnDefinition Width="1.15*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Bağlantı kodu" FontWeight="SemiBold" />
+                                            <TextBox Style="{StaticResource Field}" Text="{Binding ConnectCode, UpdateSourceTrigger=PropertyChanged}" FontSize="18" Margin="0,10,0,22" />
+                                            <Button Style="{StaticResource PrimaryButton}" Content="Bağlanma İsteği Gönder" Command="{Binding RequestSessionCommand}" HorizontalAlignment="Left" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Border BorderBrush="#C9D1DE" BorderThickness="1" CornerRadius="6" Padding="18" Margin="0,0,0,18">
+                                                <TextBlock Text="{Binding ViewerSurfaceText}" Foreground="#1D4ED8" />
+                                            </Border>
+                                            <Border BorderBrush="#F59E0B" BorderThickness="1" Background="#FFFBEB" CornerRadius="6" Padding="18">
+                                                <TextBlock Text="{Binding MetricsText}" Foreground="#7C4A03" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource Card}" Margin="0,28,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Son Cihazlar" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,18" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" /><ColumnDefinition Width="1.5*" /><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.2*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Cihaz adı" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="Son bağlantı" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="Durum" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="Aksiyon" FontWeight="SemiBold" />
+                                        </Grid>
+                                        <Separator Margin="0,12" />
+                                        <Grid Margin="0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" /><ColumnDefinition Width="1.5*" /><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.2*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="OFIS-PC-24" /><TextBlock Grid.Column="1" Text="Bugün 14:20" /><TextBlock Grid.Column="2" Text="Online" Foreground="#15803D" /><Button Grid.Column="3" Style="{StaticResource SecondaryButton}" Content="Bağlan" Height="34" HorizontalAlignment="Left" />
+                                        </Grid>
+                                        <Separator Margin="0,8" />
+                                        <Grid Margin="0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" /><ColumnDefinition Width="1.5*" /><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.2*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="MUHASEBE-PC" /><TextBlock Grid.Column="1" Text="Dün 17:10" /><TextBlock Grid.Column="2" Text="Offline" Foreground="#64748B" /><Button Grid.Column="3" Style="{StaticResource SecondaryButton}" Content="Bağlanamaz" Height="34" IsEnabled="False" HorizontalAlignment="Left" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <Grid Visibility="{Binding RemoteVisibility}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="320" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Border Grid.ColumnSpan="2" Background="White" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,20">
+                                    <WrapPanel VerticalAlignment="Center">
+                                        <TextBlock Text="● Bağlı" Foreground="#16A34A" FontWeight="SemiBold" Margin="0,10,26,0" />
+                                        <TextBlock Text="FPS: 12" Margin="0,10,26,0" />
+                                        <TextBlock Text="Gecikme: 38 ms" Margin="0,10,26,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Ekrana Sığdır" Margin="0,0,8,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Gerçek Boyut" Margin="0,0,8,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Tam Ekran" Margin="0,0,8,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Dosya Aktarımı" Margin="0,0,8,0" Command="{Binding ShowFileTransferCommand}" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Clipboard" Margin="0,0,8,0" />
+                                        <Button Style="{StaticResource DangerButton}" Content="Oturumu Bitir" Command="{Binding EndSessionCommand}" />
+                                    </WrapPanel>
+                                </Border>
+                                <Border Grid.Row="1" Background="#111827" CornerRadius="6" ClipToBounds="True" Margin="0,0,18,0">
+                                    <Grid>
+                                        <Image Source="{Binding RemoteFrame}" Stretch="Uniform" />
+                                        <TextBlock Text="{Binding ViewerSurfaceText}" Foreground="#CBD5E1" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" />
+                                    </Grid>
+                                </Border>
+                                <Border Grid.Column="1" Grid.Row="1" Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="Oturum Ayrıntıları" FontWeight="SemiBold" FontSize="18" />
+                                        <TextBlock Text="Host: OFIS-PC-24" Margin="0,26,0,0" />
+                                        <TextBlock Text="Kullanıcı: Zeynep Kaya" Margin="0,18,0,20" />
+                                        <Separator />
+                                        <TextBlock Text="Yetkiler" FontWeight="SemiBold" Margin="0,22,0,14" />
+                                        <DockPanel Margin="0,10"><TextBlock Text="Ekran görüntüleme" /><TextBlock DockPanel.Dock="Right" Text="Açık" Foreground="#15803D" /></DockPanel>
+                                        <DockPanel Margin="0,10"><TextBlock Text="Uzaktan kontrol" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" /></DockPanel>
+                                        <DockPanel Margin="0,10"><TextBlock Text="Dosya aktarımı" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" /></DockPanel>
+                                        <DockPanel Margin="0,10"><TextBlock Text="Clipboard" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" /></DockPanel>
+                                        <Border Background="#FFFBEB" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,22,0,0">
+                                            <TextBlock Text="Uzaktan kontrol host onayı gerektirir." Foreground="#7C4A03" TextWrapping="Wrap" />
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <StackPanel Visibility="{Binding SessionsVisibility}">
+                                <TextBlock Text="Aktif Host Oturumu" FontSize="28" FontWeight="SemiBold" />
+                                <TextBlock Text="Bu ekran şu anda uzaktan görüntüleniyor ve oturum aktif." Foreground="{StaticResource Muted}" Margin="0,8,0,18" />
+                                <Border Background="#FFFBEB" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,18">
+                                    <TextBlock Text="Bu bilgisayar şu anda uzaktan görüntüleniyor." FontWeight="SemiBold" Foreground="#7C4A03" />
+                                </Border>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="Oturum Bilgileri" FontSize="18" FontWeight="SemiBold" />
+                                            <TextBlock Text="Bağlanan kullanıcı: Ahmet Yılmaz" Margin="0,18,0,0" />
+                                            <TextBlock Text="Görüntüleyen cihaz: SUPPORT-LAPTOP" Margin="0,12,0,0" />
+                                            <TextBlock Text="Başlangıç saati: 14:32" Margin="0,12,0,0" />
+                                            <TextBlock Text="Oturum süresi: 00:08:21" Margin="0,12,0,18" />
+                                            <UniformGrid Columns="4">
+                                                <TextBlock Text="FPS&#x0a;12" TextAlignment="Center" />
+                                                <TextBlock Text="Gecikme&#x0a;38 ms" TextAlignment="Center" />
+                                                <TextBlock Text="Bitrate&#x0a;1.8 Mbps" TextAlignment="Center" />
+                                                <TextBlock Text="Packet loss&#x0a;0.2%" TextAlignment="Center" />
+                                            </UniformGrid>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="2" Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="Etkin İzinler" FontSize="18" FontWeight="SemiBold" />
+                                            <DockPanel Margin="0,22,0,0"><TextBlock Text="Ekran görüntüleme" /><TextBlock DockPanel.Dock="Right" Text="Açık" Foreground="#15803D" /></DockPanel>
+                                            <DockPanel Margin="0,18,0,0"><TextBlock Text="Uzaktan kontrol" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" /></DockPanel>
+                                            <DockPanel Margin="0,18,0,0"><TextBlock Text="Dosya aktarımı" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" Foreground="#DC2626" /></DockPanel>
+                                            <DockPanel Margin="0,18,0,0"><TextBlock Text="Clipboard" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" Foreground="#DC2626" /></DockPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                                    <WrapPanel>
+                                        <Button Style="{StaticResource DangerButton}" Content="Bağlantıyı Kes" Command="{Binding EndSessionCommand}" Margin="0,0,12,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Kontrolü Durdur" Margin="0,0,12,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Sadece İzleme" Margin="0,0,12,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Dosya Aktarımını Kapat" Margin="0,0,12,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Clipboard'u Kapat" />
+                                    </WrapPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Etkinlik Logu" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
+                                        <ListBox ItemsSource="{Binding SecurityEvents}" BorderThickness="0" MinHeight="120" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding DevicesVisibility}">
+                                <TextBlock Text="Cihazlar" FontSize="28" FontWeight="SemiBold" />
+                                <Border Style="{StaticResource Card}" Margin="0,22,0,0">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Cihaz adı" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="İşletim sistemi" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="Durum" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="Son görülme" FontWeight="SemiBold" />
+                                        </Grid>
+                                        <Separator Margin="0,12" />
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions><TextBlock Text="OFIS-PC-24" /><TextBlock Grid.Column="1" Text="Windows 11" /><TextBlock Grid.Column="2" Text="Online" Foreground="#15803D" /><TextBlock Grid.Column="3" Text="Şimdi" /></Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding FileTransferVisibility}">
+                                <TextBlock Text="Dosya Aktarımı" FontSize="28" FontWeight="SemiBold" />
+                                <Border Background="#FFFBEB" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,22,0,20">
+                                    <TextBlock Text="Dosya aktarımı host tarafından onaylanmalıdır." Foreground="#7C4A03" />
+                                </Border>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="Yerel Dosyalar" FontSize="18" FontWeight="SemiBold" />
+                                            <TextBlock Text="rapor.pdf                         2.4 MB" Margin="0,28,0,0" />
+                                            <TextBlock Text="ekran-goruntusu.png        840 KB" Margin="0,22,0,0" />
+                                            <TextBlock Text="kurulum-log.txt               120 KB" Margin="0,22,0,28" />
+                                            <WrapPanel><Button Style="{StaticResource SecondaryButton}" Content="Dosya Seç" Margin="0,0,10,0" /><Button Style="{StaticResource PrimaryButton}" Content="Gönder" Margin="0,0,10,0" /><Button Style="{StaticResource SecondaryButton}" Content="İptal" /></WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="2" Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="Aktarım Kuyruğu" FontSize="18" FontWeight="SemiBold" />
+                                            <TextBlock Text="rapor.pdf                                      Bekliyor" Margin="0,28,0,0" />
+                                            <TextBlock Text="ekran-goruntusu.png                  %45" Margin="0,24,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding SecurityVisibility}">
+                                <TextBlock Text="Güvenlik Logları" FontSize="28" FontWeight="SemiBold" />
+                                <Border Style="{StaticResource Card}" Margin="0,22,0,20">
+                                    <WrapPanel><ComboBox Width="220" Height="40" Margin="0,0,18,0"><ComboBoxItem Content="Tüm olaylar" IsSelected="True" /></ComboBox><ComboBox Width="220" Height="40" Margin="0,0,18,0"><ComboBoxItem Content="Tüm seviyeler" IsSelected="True" /></ComboBox><TextBox Style="{StaticResource Field}" Width="250" Text="Ara..." /><Button Style="{StaticResource SecondaryButton}" Content="Filtrele" Margin="18,0,0,0" /></WrapPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <ListView ItemsSource="{Binding SecurityEvents}" MinHeight="460" />
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding SettingsVisibility}">
+                                <TextBlock Text="Ayarlar" FontSize="28" FontWeight="SemiBold" />
+                                <Border Style="{StaticResource Card}" Margin="0,20,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Genel" FontSize="18" FontWeight="SemiBold" /><TextBlock Text="Cihaz adı" Margin="0,28,0,0" /><TextBlock Text="API sunucu URL" Margin="0,28,0,0" /><TextBlock Text="Windows ile başlat" Margin="0,28,0,0" /></StackPanel><StackPanel Grid.Column="1" Margin="40,38,0,0"><TextBox Style="{StaticResource Field}" Text="OFIS-PC-24" /><TextBox Style="{StaticResource Field}" Text="https://api.secureremotedesk.local" Margin="0,14,0,0" /><CheckBox Content="Açık" IsChecked="True" Margin="0,24,0,0" /></StackPanel></Grid></Border>
+                                <Border Style="{StaticResource Card}" Margin="0,0,0,14"><StackPanel><TextBlock Text="Güvenlik" FontSize="18" FontWeight="SemiBold" /><CheckBox Content="Her bağlantı için host onayı zorunlu" IsChecked="True" Margin="0,18,0,0" /><CheckBox Content="Uzaktan kontrol için ayrı onay" IsChecked="True" Margin="0,14,0,0" /><CheckBox Content="Clipboard varsayılan kapalı" IsChecked="True" Margin="0,14,0,0" /><CheckBox Content="Dosya aktarımı varsayılan kapalı" IsChecked="True" Margin="0,14,0,0" /><CheckBox Content="Oturum logları kapatılamaz" IsChecked="True" IsEnabled="False" Margin="0,14,0,0" /></StackPanel></Border>
+                                <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Bağlantı" FontSize="18" FontWeight="SemiBold" /><TextBox Style="{StaticResource Field}" Text="50555" Margin="0,18,0,0" /><TextBox Style="{StaticResource Field}" Text="12" Margin="0,14,0,0" /><ComboBox Height="42" Margin="0,14,0,0"><ComboBoxItem Content="Dengeli" IsSelected="True" /></ComboBox><WrapPanel Margin="0,22,0,0"><Button Style="{StaticResource PrimaryButton}" Content="Kaydet" Margin="0,0,12,0" /><Button Style="{StaticResource SecondaryButton}" Content="Değişiklikleri Sıfırla" /></WrapPanel></StackPanel></Border>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+
+                    <Grid Background="#99000000" Visibility="{Binding IncomingModalVisibility}">
+                        <Border Background="White" BorderBrush="#D8DEE8" BorderThickness="1" CornerRadius="8" Padding="22" Width="430" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel>
+                                <TextBlock Text="Gelen Bağlantı İsteği" FontSize="20" FontWeight="SemiBold" />
+                                <Border BorderBrush="#D8DEE8" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,18,0,18">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding IncomingRequestText}" TextWrapping="Wrap" />
+                                        <TextBlock Text="Rol: Technician" Margin="0,10,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="İstenen izinler" FontWeight="SemiBold" />
+                                <CheckBox Content="Ekran görüntüleme" IsChecked="True" Margin="0,12,0,0" />
+                                <CheckBox Content="Uzaktan kontrol" IsChecked="False" Margin="0,8,0,0" />
+                                <CheckBox Content="Dosya aktarımı" IsChecked="False" Margin="0,8,0,0" />
+                                <CheckBox Content="Clipboard" IsChecked="False" Margin="0,8,0,0" />
+                                <Border Background="#FFFBEB" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,18,0,18">
+                                    <TextBlock Text="Bu isteği onaylarsanız karşı taraf ekranınızı görebilir. Uzaktan kontrol ayrı izin gerektirir." TextWrapping="Wrap" Foreground="#7C4A03" />
+                                </Border>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Style="{StaticResource SecondaryButton}" Content="Reddet" Command="{Binding RejectSessionCommand}" Margin="0,0,10,0" />
+                                    <Button Style="{StaticResource PrimaryButton}" Content="Onayla" Command="{Binding ApproveSessionCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,27 @@
+<Window x:Class="SecureRemoteDesk.Viewer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecureRemoteDesk.Viewer.ViewModels"
+        Title="SecureRemoteDesk Viewer" Width="1120" Height="720" MinWidth="920" MinHeight="600">
+    <Window.DataContext>
+        <vm:RemoteSessionViewModel />
+    </Window.DataContext>
+    <DockPanel Background="#F5F7FB">
+        <Border DockPanel.Dock="Top" Background="#0B1F3A" Padding="14,10">
+            <DockPanel>
+                <TextBlock Text="SecureRemoteDesk Viewer" Foreground="White" FontSize="18" FontWeight="SemiBold" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <TextBlock Text="{Binding Metrics}" Foreground="White" Margin="0,0,18,0" />
+                    <Button Content="Fit to screen" Padding="10,6" Margin="0,0,8,0" />
+                    <Button Content="Fullscreen" Padding="10,6" Margin="0,0,8,0" />
+                    <Button Content="End session" Command="{Binding EndSessionCommand}" Padding="10,6" Background="#B91C1C" Foreground="White" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        <Grid Margin="18">
+            <Border Background="#111827" CornerRadius="6" BorderBrush="#D7DEE8" BorderThickness="1">
+                <TextBlock Text="Remote screen stream placeholder" Foreground="#CBD5E1" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" />
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

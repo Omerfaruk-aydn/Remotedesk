@@ -1,0 +1,57 @@
+<Window x:Class="SecureRemoteDesk.Host.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SecureRemoteDesk.Host.ViewModels"
+        Title="SecureRemoteDesk Host" Width="980" Height="680" MinWidth="860" MinHeight="560">
+    <Window.DataContext>
+        <vm:ActiveSessionViewModel />
+    </Window.DataContext>
+    <Grid Background="#F5F7FB">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Background="#0B1F3A" Padding="18,14">
+            <DockPanel>
+                <TextBlock Text="SecureRemoteDesk Host" Foreground="White" FontSize="20" FontWeight="SemiBold" />
+                <Border DockPanel.Dock="Right" Background="#B91C1C" CornerRadius="4" Padding="10,6">
+                    <TextBlock Text="Bu bilgisayar uzaktan görüntüleniyor / kontrol ediliyor" Foreground="White" FontWeight="SemiBold" />
+                </Border>
+            </DockPanel>
+        </Border>
+        <Grid Grid.Row="1" Margin="24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="1.2*" />
+            </Grid.ColumnDefinitions>
+            <Border Background="White" CornerRadius="6" Padding="20" BorderBrush="#D7DEE8" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="Aktif Oturum" FontSize="28" FontWeight="SemiBold" Foreground="#102033" />
+                    <TextBlock Text="{Binding ConnectedUser}" Margin="0,14,0,0" FontSize="16" />
+                    <TextBlock Text="{Binding StartedAt}" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding PermissionsSummary}" Margin="0,6,0,18" />
+                    <UniformGrid Columns="3" Margin="0,10,0,18">
+                        <TextBlock Text="{Binding LatencyText}" />
+                        <TextBlock Text="{Binding FpsText}" />
+                        <TextBlock Text="{Binding Status}" />
+                    </UniformGrid>
+                    <WrapPanel>
+                        <Button Content="Bağlantıyı Kes" Command="{Binding EndSessionCommand}" Padding="14,9" Margin="0,0,8,8" Background="#B91C1C" Foreground="White" />
+                        <Button Content="Kontrolü Durdur" Command="{Binding DisableControlCommand}" Padding="14,9" Margin="0,0,8,8" />
+                        <Button Content="Sadece İzleme Modu" Command="{Binding ViewOnlyCommand}" Padding="14,9" Margin="0,0,8,8" />
+                        <Button Content="Dosya Aktarımını Kapat" Command="{Binding DisableFileTransferCommand}" Padding="14,9" Margin="0,0,8,8" />
+                        <Button Content="Clipboard'u Kapat" Command="{Binding DisableClipboardCommand}" Padding="14,9" Margin="0,0,8,8" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="20" Margin="18,0,0,0" BorderBrush="#D7DEE8" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="Gelen Bağlantı İsteği" FontSize="20" FontWeight="SemiBold" />
+                    <TextBlock Text="Viewer kimliği ve izinler kullanıcıya açıkça gösterilir. Kullanıcı onaylamadan oturum başlamaz." TextWrapping="Wrap" Margin="0,10,0,14" />
+                    <Button Content="Onayla" Padding="12,8" Background="#166534" Foreground="White" Margin="0,0,0,8" />
+                    <Button Content="Reddet" Padding="12,8" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
