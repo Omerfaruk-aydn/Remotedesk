@@ -11,10 +11,18 @@ namespace SecureRemoteDesk.Desktop.Services;
 
 public sealed record IncomingLocalRequest(string ViewerName, IPEndPoint RemoteEndPoint);
 
+public sealed record IncomingFileOffer(string TransferId, string FileName, long SizeBytes, bool IsFromHost);
+public sealed record IncomingFileDecision(string TransferId, bool Accepted);
+public sealed record FileChunkPayload(string TransferId, int ChunkIndex, byte[] Data);
+
 public sealed class LocalHostSessionServer : IAsyncDisposable
 {
+    private const byte MsgString = (byte)'S';
+    private const byte MsgBinary = (byte)'B';
+
     private readonly int _port;
     private readonly CancellationTokenSource _cts = new();
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
     private TcpListener? _listener;
     private TcpClient? _pendingClient;
     private NetworkStream? _pendingStream;
@@ -28,6 +36,12 @@ public sealed class LocalHostSessionServer : IAsyncDisposable
 
     public event Action<IncomingLocalRequest>? IncomingRequest;
     public event Action<string>? StatusChanged;
+    public event Action<string>? InputReceived;
+    public event Action<IncomingFileOffer>? FileOfferReceived;
+    public event Action<IncomingFileDecision>? FileDecisionReceived;
+    public event Action<FileChunkPayload>? FileChunkReceived;
+    public event Action<string>? FileCompleteReceived;
+    public event Action<string>? ClipboardReceived;
 
     public Task StartAsync()
     {
@@ -38,20 +52,126 @@ public sealed class LocalHostSessionServer : IAsyncDisposable
         return Task.CompletedTask;
     }
 
-    public async Task ApproveAsync(CancellationToken cancellationToken)
+    public async Task ApproveAsync(bool remoteControlGranted, bool fileTransferGranted, bool clipboardGranted, CancellationToken cancellationToken)
     {
         if (_pendingStream is null)
             throw new InvalidOperationException("No pending viewer request.");
 
-        await WriteStringAsync(_pendingStream, "APPROVED", cancellationToken);
+        var bounds = FormsScreen.PrimaryScreen?.Bounds ?? new Rectangle(0, 0, 1280, 720);
+        await WriteRawStringAsync(_pendingStream, "APPROVED", cancellationToken);
+        await WriteRawStringAsync(_pendingStream, $"SCREEN|{bounds.Width}|{bounds.Height}", cancellationToken);
+        await WriteRawStringAsync(_pendingStream, $"CONTROL|{(remoteControlGranted ? "granted" : "denied")}", cancellationToken);
+        await WriteRawStringAsync(_pendingStream, $"FILETRANSFER|{(fileTransferGranted ? "granted" : "denied")}", cancellationToken);
+        await WriteRawStringAsync(_pendingStream, $"CLIPBOARD|{(clipboardGranted ? "granted" : "denied")}", cancellationToken);
         StatusChanged?.Invoke("Oturum onaylandı, ekran paylaşımı başladı.");
         _ = SendFramesAsync(_pendingStream, _cts.Token);
+        _ = ReadMessageLoopAsync(_pendingStream, _cts.Token, fromHost: false);
+    }
+
+    public async Task SendFileOfferAsync(string transferId, string fileName, long sizeBytes, CancellationToken cancellationToken)
+    {
+        if (_pendingStream is null) return;
+        await WriteTypedStringAsync(_pendingStream, $"FILE_OFFER|{transferId}|{fileName}|{sizeBytes}", cancellationToken);
+    }
+
+    public async Task SendFileDecisionAsync(string transferId, bool accepted, CancellationToken cancellationToken)
+    {
+        if (_pendingStream is null) return;
+        var msg = accepted ? $"FILE_ACCEPT|{transferId}" : $"FILE_REJECT|{transferId}";
+        await WriteTypedStringAsync(_pendingStream, msg, cancellationToken);
+    }
+
+    public async Task SendFileChunkAsync(string transferId, int chunkIndex, byte[] payload, CancellationToken cancellationToken)
+    {
+        if (_pendingStream is null) return;
+        // Header + payload atomik yazılmalı, JPEG frame yazıcısı araya girmesin
+        var header = System.Text.Encoding.UTF8.GetBytes($"FILE_CHUNK|{transferId}|{chunkIndex}");
+        await _writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await _pendingStream.WriteAsync(new[] { MsgString }, cancellationToken);
+            await WriteBytesInternalAsync(_pendingStream, header, cancellationToken);
+            await _pendingStream.WriteAsync(new[] { MsgBinary }, cancellationToken);
+            await WriteBytesInternalAsync(_pendingStream, payload, cancellationToken);
+            await _pendingStream.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    public async Task SendFileCompleteAsync(string transferId, CancellationToken cancellationToken)
+    {
+        if (_pendingStream is null) return;
+        await WriteTypedStringAsync(_pendingStream, $"FILE_COMPLETE|{transferId}", cancellationToken);
+    }
+
+    public async Task SendClipboardAsync(string text, CancellationToken cancellationToken)
+    {
+        if (_pendingStream is null) return;
+        await WriteTypedStringAsync(_pendingStream, $"CLIPBOARD|{text}", cancellationToken);
+    }
+
+    private async Task ReadMessageLoopAsync(Stream stream, CancellationToken cancellationToken, bool fromHost)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var (type, data) = await ReadTypedAsync(stream, cancellationToken);
+                if (type != 'S')
+                    continue;
+
+                var message = System.Text.Encoding.UTF8.GetString(data);
+                if (message.StartsWith("FILE_OFFER|", StringComparison.Ordinal))
+                {
+                    var parts = message.Split('|', 4);
+                    if (parts.Length == 4 && long.TryParse(parts[3], out var size))
+                        FileOfferReceived?.Invoke(new IncomingFileOffer(parts[1], parts[2], size, IsFromHost: fromHost));
+                }
+                else if (message.StartsWith("FILE_ACCEPT|", StringComparison.Ordinal))
+                {
+                    FileDecisionReceived?.Invoke(new IncomingFileDecision(message["FILE_ACCEPT|".Length..], true));
+                }
+                else if (message.StartsWith("FILE_REJECT|", StringComparison.Ordinal))
+                {
+                    FileDecisionReceived?.Invoke(new IncomingFileDecision(message["FILE_REJECT|".Length..], false));
+                }
+                else if (message.StartsWith("FILE_CHUNK|", StringComparison.Ordinal))
+                {
+                    var parts = message.Split('|');
+                    if (parts.Length == 3 && int.TryParse(parts[2], out var idx))
+                    {
+                        var (payloadType, payload) = await ReadTypedAsync(stream, cancellationToken);
+                        if (payloadType == 'B')
+                            FileChunkReceived?.Invoke(new FileChunkPayload(parts[1], idx, payload));
+                    }
+                }
+                else if (message.StartsWith("FILE_COMPLETE|", StringComparison.Ordinal))
+                {
+                    FileCompleteReceived?.Invoke(message["FILE_COMPLETE|".Length..]);
+                }
+                else if (message.StartsWith("CLIPBOARD|", StringComparison.Ordinal))
+                {
+                    ClipboardReceived?.Invoke(message["CLIPBOARD|".Length..]);
+                }
+                else
+                {
+                    InputReceived?.Invoke(message);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Stream closed when the session ends; nothing left to read.
+        }
     }
 
     public async Task RejectAsync(CancellationToken cancellationToken)
     {
         if (_pendingStream is not null)
-            await WriteStringAsync(_pendingStream, "REJECTED", cancellationToken);
+            await WriteRawStringAsync(_pendingStream, "REJECTED", cancellationToken);
         ClosePending();
         StatusChanged?.Invoke("Bağlantı isteği reddedildi.");
     }
@@ -59,7 +179,16 @@ public sealed class LocalHostSessionServer : IAsyncDisposable
     public async Task EndAsync()
     {
         if (_pendingStream is not null)
-            await WriteStringAsync(_pendingStream, "ENDED", CancellationToken.None);
+        {
+            try
+            {
+                await WriteRawStringAsync(_pendingStream, "ENDED", CancellationToken.None);
+            }
+            catch
+            {
+                // Karşı taraf bağlantıyı zaten kapatmış olabilir
+            }
+        }
         ClosePending();
         StatusChanged?.Invoke("Oturum sonlandırıldı.");
     }
@@ -70,7 +199,7 @@ public sealed class LocalHostSessionServer : IAsyncDisposable
         {
             var client = await _listener.AcceptTcpClientAsync(cancellationToken);
             var stream = client.GetStream();
-            var message = await ReadStringAsync(stream, cancellationToken);
+            var message = await ReadRawStringAsync(stream, cancellationToken);
             if (!message.StartsWith("REQUEST|", StringComparison.Ordinal))
             {
                 client.Dispose();
@@ -85,13 +214,28 @@ public sealed class LocalHostSessionServer : IAsyncDisposable
         }
     }
 
-    private static async Task SendFramesAsync(Stream stream, CancellationToken cancellationToken)
+    private async Task SendFramesAsync(Stream stream, CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            var frame = CapturePrimaryScreenJpeg();
-            await WriteBytesAsync(stream, frame, cancellationToken);
-            await Task.Delay(500, cancellationToken);
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var frame = CapturePrimaryScreenJpeg();
+                await _writeLock.WaitAsync(cancellationToken);
+                try
+                {
+                    await WriteTypedBytesUnlockedAsync(stream, frame, cancellationToken);
+                }
+                finally
+                {
+                    _writeLock.Release();
+                }
+                await Task.Delay(500, cancellationToken);
+            }
+        }
+        catch (Exception)
+        {
+            // Session ended.
         }
     }
 
@@ -135,25 +279,76 @@ public sealed class LocalHostSessionServer : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await EndAsync();
-        _cts.Cancel();
-        _listener?.Stop();
+        try { await EndAsync(); } catch { }
+        try { _cts.Cancel(); } catch { }
+        try { _listener?.Stop(); } catch { }
         _cts.Dispose();
     }
 
-    internal static async Task WriteStringAsync(Stream stream, string value, CancellationToken cancellationToken)
+    // --- Framing helpers (raw, no type tag — used during handshake) ---
+
+    internal static async Task WriteRawStringAsync(Stream stream, string value, CancellationToken cancellationToken)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(value);
-        await WriteBytesAsync(stream, bytes, cancellationToken);
+        await WriteBytesInternalAsync(stream, bytes, cancellationToken);
     }
 
-    internal static async Task<string> ReadStringAsync(Stream stream, CancellationToken cancellationToken)
+    internal static async Task<string> ReadRawStringAsync(Stream stream, CancellationToken cancellationToken)
     {
-        var bytes = await ReadBytesAsync(stream, cancellationToken);
+        var bytes = await ReadBytesInternalAsync(stream, cancellationToken);
         return System.Text.Encoding.UTF8.GetString(bytes);
     }
 
-    internal static async Task WriteBytesAsync(Stream stream, byte[] bytes, CancellationToken cancellationToken)
+    // --- Framing helpers (typed, used after handshake) ---
+
+    internal async Task WriteTypedStringAsync(Stream stream, string value, CancellationToken cancellationToken)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(value);
+        await _writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await WriteTypedStringUnlockedAsync(stream, value, bytes, cancellationToken);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private static async Task WriteTypedStringUnlockedAsync(Stream stream, string value, byte[] bytes, CancellationToken cancellationToken)
+    {
+        await stream.WriteAsync(new[] { MsgString }, cancellationToken);
+        await WriteBytesInternalAsync(stream, bytes, cancellationToken);
+    }
+
+    internal async Task WriteTypedBytesAsync(Stream stream, byte[] bytes, CancellationToken cancellationToken)
+    {
+        await _writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await WriteTypedBytesUnlockedAsync(stream, bytes, cancellationToken);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private static async Task WriteTypedBytesUnlockedAsync(Stream stream, byte[] bytes, CancellationToken cancellationToken)
+    {
+        await stream.WriteAsync(new[] { MsgBinary }, cancellationToken);
+        await WriteBytesInternalAsync(stream, bytes, cancellationToken);
+    }
+
+    internal static async Task<(char Type, byte[] Data)> ReadTypedAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        var typeBuf = new byte[1];
+        await stream.ReadExactlyAsync(typeBuf, cancellationToken);
+        var data = await ReadBytesInternalAsync(stream, cancellationToken);
+        return ((char)typeBuf[0], data);
+    }
+
+    private static async Task WriteBytesInternalAsync(Stream stream, byte[] bytes, CancellationToken cancellationToken)
     {
         var length = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(bytes.Length));
         await stream.WriteAsync(length, cancellationToken);
@@ -161,12 +356,12 @@ public sealed class LocalHostSessionServer : IAsyncDisposable
         await stream.FlushAsync(cancellationToken);
     }
 
-    internal static async Task<byte[]> ReadBytesAsync(Stream stream, CancellationToken cancellationToken)
+    private static async Task<byte[]> ReadBytesInternalAsync(Stream stream, CancellationToken cancellationToken)
     {
         var lengthBytes = new byte[4];
         await stream.ReadExactlyAsync(lengthBytes, cancellationToken);
         var length = IPAddress.NetworkToHostOrder(BitConverter.ToInt32(lengthBytes));
-        if (length is <= 0 or > 5_000_000)
+        if (length is <= 0 or > 100_000_000)
             throw new InvalidOperationException("Invalid frame size.");
         var bytes = new byte[length];
         await stream.ReadExactlyAsync(bytes, cancellationToken);
@@ -176,11 +371,27 @@ public sealed class LocalHostSessionServer : IAsyncDisposable
 
 public sealed class LocalViewerSessionClient : IAsyncDisposable
 {
+    private const byte MsgString = (byte)'S';
+    private const byte MsgBinary = (byte)'B';
+
     private readonly CancellationTokenSource _cts = new();
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
     private TcpClient? _client;
+    private NetworkStream? _stream;
 
     public event Action<BitmapImage>? FrameReceived;
     public event Action<string>? StatusChanged;
+    public event Action<IncomingFileOffer>? FileOfferReceived;
+    public event Action<IncomingFileDecision>? FileDecisionReceived;
+    public event Action<FileChunkPayload>? FileChunkReceived;
+    public event Action<string>? FileCompleteReceived;
+    public event Action<string>? ClipboardReceived;
+
+    public int RemoteScreenWidth { get; private set; } = 1920;
+    public int RemoteScreenHeight { get; private set; } = 1080;
+    public bool RemoteControlGranted { get; private set; }
+    public bool FileTransferGranted { get; private set; }
+    public bool ClipboardGranted { get; private set; }
 
     public async Task ConnectAsync(string hostAndPort, CancellationToken cancellationToken)
     {
@@ -191,26 +402,184 @@ public sealed class LocalViewerSessionClient : IAsyncDisposable
         _client = new TcpClient();
         await _client.ConnectAsync(parts[0], port, cancellationToken);
         var stream = _client.GetStream();
-        await LocalHostSessionServer.WriteStringAsync(stream, $"REQUEST|{Environment.UserName}", cancellationToken);
+        _stream = stream;
+        await LocalHostSessionServer.WriteRawStringAsync(stream, $"REQUEST|{Environment.UserName}", cancellationToken);
         StatusChanged?.Invoke("Host onayı bekleniyor.");
 
-        var decision = await LocalHostSessionServer.ReadStringAsync(stream, cancellationToken);
+        var decision = await LocalHostSessionServer.ReadRawStringAsync(stream, cancellationToken);
         if (decision != "APPROVED")
         {
             StatusChanged?.Invoke("Host bağlantıyı reddetti.");
             return;
         }
 
-        StatusChanged?.Invoke("Bağlandı. Ekran görüntüsü alınıyor.");
-        _ = ReceiveFramesAsync(stream, _cts.Token);
+        var screenMessage = await LocalHostSessionServer.ReadRawStringAsync(stream, cancellationToken);
+        var screenParts = screenMessage.Split('|');
+        if (screenParts.Length == 3 && int.TryParse(screenParts[1], out var w) && int.TryParse(screenParts[2], out var h))
+        {
+            RemoteScreenWidth = w;
+            RemoteScreenHeight = h;
+        }
+
+        var controlMessage = await LocalHostSessionServer.ReadRawStringAsync(stream, cancellationToken);
+        RemoteControlGranted = controlMessage == "CONTROL|granted";
+
+        var fileMessage = await LocalHostSessionServer.ReadRawStringAsync(stream, cancellationToken);
+        FileTransferGranted = fileMessage == "FILETRANSFER|granted";
+
+        var clipboardMessage = await LocalHostSessionServer.ReadRawStringAsync(stream, cancellationToken);
+        ClipboardGranted = clipboardMessage == "CLIPBOARD|granted";
+
+        StatusChanged?.Invoke(BuildStatusMessage());
+        _ = ReadMessageLoopAsync(stream, _cts.Token);
     }
 
-    private async Task ReceiveFramesAsync(Stream stream, CancellationToken cancellationToken)
+    private string BuildStatusMessage()
     {
-        while (!cancellationToken.IsCancellationRequested)
+        var control = RemoteControlGranted ? "açık" : "kapalı";
+        var file = FileTransferGranted ? "açık" : "kapalı";
+        var clip = ClipboardGranted ? "açık" : "kapalı";
+        return $"Bağlandı. Kontrol: {control}, Dosya: {file}, Clipboard: {clip}.";
+    }
+
+    public async Task SendPointerMoveAsync(double normalizedX, double normalizedY)
+    {
+        await SendInputAsync($"MOVE|{normalizedX.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{normalizedY.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+    }
+
+    public async Task SendPointerButtonAsync(bool left, bool down)
+    {
+        await SendInputAsync($"{(down ? "DOWN" : "UP")}|{(left ? "L" : "R")}");
+    }
+
+    public async Task SendWheelAsync(int delta)
+    {
+        await SendInputAsync($"WHEEL|{delta}");
+    }
+
+    public async Task SendKeyAsync(int virtualKey, bool down)
+    {
+        await SendInputAsync($"{(down ? "KEYDOWN" : "KEYUP")}|{virtualKey}");
+    }
+
+    public async Task SendFileOfferAsync(string transferId, string fileName, long sizeBytes, CancellationToken cancellationToken)
+    {
+        if (_stream is null) return;
+        await WriteTypedStringAsync(_stream, $"FILE_OFFER|{transferId}|{fileName}|{sizeBytes}", cancellationToken);
+    }
+
+    public async Task SendFileDecisionAsync(string transferId, bool accepted, CancellationToken cancellationToken)
+    {
+        if (_stream is null) return;
+        var msg = accepted ? $"FILE_ACCEPT|{transferId}" : $"FILE_REJECT|{transferId}";
+        await WriteTypedStringAsync(_stream, msg, cancellationToken);
+    }
+
+    public async Task SendFileChunkAsync(string transferId, int chunkIndex, byte[] payload, CancellationToken cancellationToken)
+    {
+        if (_stream is null) return;
+        // Header + payload atomik yazılmalı, frame yazıcısı araya girmesin
+        var header = System.Text.Encoding.UTF8.GetBytes($"FILE_CHUNK|{transferId}|{chunkIndex}");
+        await _writeLock.WaitAsync(cancellationToken);
+        try
         {
-            var frame = await LocalHostSessionServer.ReadBytesAsync(stream, cancellationToken);
-            FrameReceived?.Invoke(ToBitmapImage(frame));
+            await _stream.WriteAsync(new[] { MsgString }, cancellationToken);
+            await WriteBytesInternalAsync(_stream, header, cancellationToken);
+            await _stream.WriteAsync(new[] { MsgBinary }, cancellationToken);
+            await WriteBytesInternalAsync(_stream, payload, cancellationToken);
+            await _stream.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    public async Task SendFileCompleteAsync(string transferId, CancellationToken cancellationToken)
+    {
+        if (_stream is null) return;
+        await WriteTypedStringAsync(_stream, $"FILE_COMPLETE|{transferId}", cancellationToken);
+    }
+
+    public async Task SendClipboardAsync(string text, CancellationToken cancellationToken)
+    {
+        if (_stream is null) return;
+        await WriteTypedStringAsync(_stream, $"CLIPBOARD|{text}", cancellationToken);
+    }
+
+    private async Task SendInputAsync(string message)
+    {
+        if (_stream is null || !RemoteControlGranted)
+            return;
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(message);
+        await _writeLock.WaitAsync();
+        try
+        {
+            await WriteTypedStringUnlockedAsync(_stream, bytes, CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // Best-effort: dropped input is safe to ignore, the session may be ending.
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private async Task ReadMessageLoopAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var (type, data) = await LocalHostSessionServer.ReadTypedAsync(stream, cancellationToken);
+                if (type == 'B')
+                {
+                    FrameReceived?.Invoke(ToBitmapImage(data));
+                }
+                else if (type == 'S')
+                {
+                    var message = System.Text.Encoding.UTF8.GetString(data);
+                    if (message.StartsWith("FILE_OFFER|", StringComparison.Ordinal))
+                    {
+                        var parts = message.Split('|', 4);
+                        if (parts.Length == 4 && long.TryParse(parts[3], out var size))
+                            FileOfferReceived?.Invoke(new IncomingFileOffer(parts[1], parts[2], size, IsFromHost: true));
+                    }
+                    else if (message.StartsWith("FILE_ACCEPT|", StringComparison.Ordinal))
+                    {
+                        FileDecisionReceived?.Invoke(new IncomingFileDecision(message["FILE_ACCEPT|".Length..], true));
+                    }
+                    else if (message.StartsWith("FILE_REJECT|", StringComparison.Ordinal))
+                    {
+                        FileDecisionReceived?.Invoke(new IncomingFileDecision(message["FILE_REJECT|".Length..], false));
+                    }
+                    else if (message.StartsWith("FILE_CHUNK|", StringComparison.Ordinal))
+                    {
+                        var parts = message.Split('|');
+                        if (parts.Length == 3 && int.TryParse(parts[2], out var idx))
+                        {
+                            var (payloadType, payload) = await LocalHostSessionServer.ReadTypedAsync(stream, cancellationToken);
+                            if (payloadType == 'B')
+                                FileChunkReceived?.Invoke(new FileChunkPayload(parts[1], idx, payload));
+                        }
+                    }
+                    else if (message.StartsWith("FILE_COMPLETE|", StringComparison.Ordinal))
+                    {
+                        FileCompleteReceived?.Invoke(message["FILE_COMPLETE|".Length..]);
+                    }
+                    else if (message.StartsWith("CLIPBOARD|", StringComparison.Ordinal))
+                    {
+                        ClipboardReceived?.Invoke(message["CLIPBOARD|".Length..]);
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Stream closed when the session ends; nothing left to read.
         }
     }
 
@@ -228,9 +597,52 @@ public sealed class LocalViewerSessionClient : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        _cts.Cancel();
-        _client?.Dispose();
+        try { _cts.Cancel(); } catch { }
+        try { _client?.Dispose(); } catch { }
         _cts.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    private async Task WriteTypedStringAsync(Stream stream, string value, CancellationToken cancellationToken)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(value);
+        await _writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await stream.WriteAsync(new[] { MsgString }, cancellationToken);
+            await WriteBytesInternalAsync(stream, bytes, cancellationToken);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private static async Task WriteTypedStringUnlockedAsync(Stream stream, byte[] bytes, CancellationToken cancellationToken)
+    {
+        await stream.WriteAsync(new[] { MsgString }, cancellationToken);
+        await WriteBytesInternalAsync(stream, bytes, cancellationToken);
+    }
+
+    private async Task WriteTypedBytesAsync(Stream stream, byte[] bytes, CancellationToken cancellationToken)
+    {
+        await _writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await stream.WriteAsync(new[] { MsgBinary }, cancellationToken);
+            await WriteBytesInternalAsync(stream, bytes, cancellationToken);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private static async Task WriteBytesInternalAsync(Stream stream, byte[] bytes, CancellationToken cancellationToken)
+    {
+        var length = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(bytes.Length));
+        await stream.WriteAsync(length, cancellationToken);
+        await stream.WriteAsync(bytes, cancellationToken);
+        await stream.FlushAsync(cancellationToken);
     }
 }

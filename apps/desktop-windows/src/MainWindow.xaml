@@ -361,7 +361,16 @@
                                 </Border>
                                 <Border Grid.Row="1" Background="#111827" CornerRadius="6" ClipToBounds="True" Margin="0,0,18,0">
                                     <Grid>
-                                        <Image Source="{Binding RemoteFrame}" Stretch="Uniform" />
+                                        <Image x:Name="RemoteImage" Source="{Binding RemoteFrame}" Stretch="Uniform" Focusable="True"
+                                               Cursor="Cross"
+                                               MouseMove="RemoteImage_MouseMove"
+                                               MouseLeftButtonDown="RemoteImage_MouseLeftButtonDown"
+                                               MouseLeftButtonUp="RemoteImage_MouseLeftButtonUp"
+                                               MouseRightButtonDown="RemoteImage_MouseRightButtonDown"
+                                               MouseRightButtonUp="RemoteImage_MouseRightButtonUp"
+                                               PreviewMouseWheel="RemoteImage_MouseWheel"
+                                               PreviewKeyDown="RemoteImage_PreviewKeyDown"
+                                               PreviewKeyUp="RemoteImage_PreviewKeyUp" />
                                         <TextBlock Text="{Binding ViewerSurfaceText}" Foreground="#CBD5E1" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" />
                                     </Grid>
                                 </Border>
@@ -373,9 +382,9 @@
                                         <Separator />
                                         <TextBlock Text="Yetkiler" FontWeight="SemiBold" Margin="0,22,0,14" />
                                         <DockPanel Margin="0,10"><TextBlock Text="Ekran görüntüleme" /><TextBlock DockPanel.Dock="Right" Text="Açık" Foreground="#15803D" /></DockPanel>
-                                        <DockPanel Margin="0,10"><TextBlock Text="Uzaktan kontrol" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" /></DockPanel>
-                                        <DockPanel Margin="0,10"><TextBlock Text="Dosya aktarımı" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" /></DockPanel>
-                                        <DockPanel Margin="0,10"><TextBlock Text="Clipboard" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" /></DockPanel>
+                                        <DockPanel Margin="0,10"><TextBlock Text="Uzaktan kontrol" /><TextBlock DockPanel.Dock="Right" Text="{Binding RemoteControlStatusText}" /></DockPanel>
+                                        <DockPanel Margin="0,10"><TextBlock Text="Dosya aktarımı" /><TextBlock DockPanel.Dock="Right" Text="{Binding FileTransferStatusText}" /></DockPanel>
+                                        <DockPanel Margin="0,10"><TextBlock Text="Clipboard" /><TextBlock DockPanel.Dock="Right" Text="{Binding ClipboardStatusText}" /></DockPanel>
                                         <Border Background="#FFFBEB" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,22,0,0">
                                             <TextBlock Text="Uzaktan kontrol host onayı gerektirir." Foreground="#7C4A03" TextWrapping="Wrap" />
                                         </Border>
@@ -410,19 +419,19 @@
                                         <StackPanel>
                                             <TextBlock Text="Etkin İzinler" FontSize="18" FontWeight="SemiBold" />
                                             <DockPanel Margin="0,22,0,0"><TextBlock Text="Ekran görüntüleme" /><TextBlock DockPanel.Dock="Right" Text="Açık" Foreground="#15803D" /></DockPanel>
-                                            <DockPanel Margin="0,18,0,0"><TextBlock Text="Uzaktan kontrol" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" /></DockPanel>
-                                            <DockPanel Margin="0,18,0,0"><TextBlock Text="Dosya aktarımı" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" Foreground="#DC2626" /></DockPanel>
-                                            <DockPanel Margin="0,18,0,0"><TextBlock Text="Clipboard" /><TextBlock DockPanel.Dock="Right" Text="Kapalı" Foreground="#DC2626" /></DockPanel>
+                                            <DockPanel Margin="0,18,0,0"><TextBlock Text="Uzaktan kontrol" /><TextBlock DockPanel.Dock="Right" Text="{Binding RemoteControlStatusText}" /></DockPanel>
+                                            <DockPanel Margin="0,18,0,0"><TextBlock Text="Dosya aktarımı" /><TextBlock DockPanel.Dock="Right" Text="{Binding FileTransferStatusText}" /></DockPanel>
+                                            <DockPanel Margin="0,18,0,0"><TextBlock Text="Clipboard" /><TextBlock DockPanel.Dock="Right" Text="{Binding ClipboardStatusText}" /></DockPanel>
                                         </StackPanel>
                                     </Border>
                                 </Grid>
                                 <Border Style="{StaticResource Card}" Margin="0,18,0,0">
                                     <WrapPanel>
                                         <Button Style="{StaticResource DangerButton}" Content="Bağlantıyı Kes" Command="{Binding EndSessionCommand}" Margin="0,0,12,0" />
-                                        <Button Style="{StaticResource SecondaryButton}" Content="Kontrolü Durdur" Margin="0,0,12,0" />
-                                        <Button Style="{StaticResource SecondaryButton}" Content="Sadece İzleme" Margin="0,0,12,0" />
-                                        <Button Style="{StaticResource SecondaryButton}" Content="Dosya Aktarımını Kapat" Margin="0,0,12,0" />
-                                        <Button Style="{StaticResource SecondaryButton}" Content="Clipboard'u Kapat" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Kontrolü Durdur" Command="{Binding StopControlCommand}" Margin="0,0,12,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Sadece İzleme" Command="{Binding StopControlCommand}" Margin="0,0,12,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Dosya Aktarımını Kapat" Command="{Binding StopFileTransferCommand}" Margin="0,0,12,0" />
+                                        <Button Style="{StaticResource SecondaryButton}" Content="Clipboard'u Kapat" Command="{Binding StopClipboardCommand}" />
                                     </WrapPanel>
                                 </Border>
                                 <Border Style="{StaticResource Card}" Margin="0,18,0,0">
@@ -450,27 +459,85 @@
                             <StackPanel Visibility="{Binding FileTransferVisibility}">
                                 <TextBlock Text="Dosya Aktarımı" FontSize="28" FontWeight="SemiBold" />
                                 <Border Background="#FFFBEB" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,22,0,20">
-                                    <TextBlock Text="Dosya aktarımı host tarafından onaylanmalıdır." Foreground="#7C4A03" />
+                                    <TextBlock Text="Dosya aktarımı host tarafından onaylanmalıdır. Karşı taraf da her transferi ayrıca onaylar." Foreground="#7C4A03" />
                                 </Border>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="Yerel Dosyalar" FontSize="18" FontWeight="SemiBold" />
-                                            <TextBlock Text="rapor.pdf                         2.4 MB" Margin="0,28,0,0" />
-                                            <TextBlock Text="ekran-goruntusu.png        840 KB" Margin="0,22,0,0" />
-                                            <TextBlock Text="kurulum-log.txt               120 KB" Margin="0,22,0,28" />
-                                            <WrapPanel><Button Style="{StaticResource SecondaryButton}" Content="Dosya Seç" Margin="0,0,10,0" /><Button Style="{StaticResource PrimaryButton}" Content="Gönder" Margin="0,0,10,0" /><Button Style="{StaticResource SecondaryButton}" Content="İptal" /></WrapPanel>
+                                            <ListBox ItemsSource="{Binding LocalFiles}" MinHeight="160" MaxHeight="240" BorderBrush="#C9D1DE" BorderThickness="1" Margin="0,16,0,12">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                            <TextBlock Text="{Binding DisplayName}" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding SizeText}" Foreground="#5C677A" Margin="0,0,12,0" />
+                                                            <Button Grid.Column="2" Content="×" Width="26" Height="26" Padding="0" Background="Transparent" BorderBrush="Transparent" Foreground="#DC2626" Command="{Binding DataContext.RemoveLocalFileCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                            <WrapPanel>
+                                                <Button Style="{StaticResource SecondaryButton}" Content="Dosya Seç" Command="{Binding PickFileCommand}" Margin="0,0,10,0" />
+                                                <Button Style="{StaticResource PrimaryButton}" Content="Gönder" Command="{Binding SendSelectedCommand}" Margin="0,0,10,0" />
+                                                <Button Style="{StaticResource SecondaryButton}" Content="Listeyi Temizle" Command="{Binding PickFileCommand}" />
+                                            </WrapPanel>
                                         </StackPanel>
                                     </Border>
                                     <Border Grid.Column="2" Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="Aktarım Kuyruğu" FontSize="18" FontWeight="SemiBold" />
-                                            <TextBlock Text="rapor.pdf                                      Bekliyor" Margin="0,28,0,0" />
-                                            <TextBlock Text="ekran-goruntusu.png                  %45" Margin="0,24,0,0" />
+                                            <ListBox ItemsSource="{Binding TransferQueue}" MinHeight="160" MaxHeight="240" BorderBrush="#C9D1DE" BorderThickness="1" Margin="0,16,0,12">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding FileName}" />
+                                                                <TextBlock Text="{Binding LocalPath}" Foreground="#5C677A" FontSize="11" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Direction}" Foreground="#0B63CE" Margin="0,0,12,0" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding Status}" Margin="0,0,12,0" />
+                                                            <TextBlock Grid.Column="3" Text="{Binding ProgressText}" Foreground="#15803D" FontWeight="SemiBold" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                            <TextBlock Text="Gelen Teklifler" FontWeight="SemiBold" Margin="0,12,0,8" />
+                                            <ListBox ItemsSource="{Binding IncomingOffers}" MinHeight="100" MaxHeight="180" BorderBrush="#C9D1DE" BorderThickness="1">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding FileName}" />
+                                                                <TextBlock Foreground="#5C677A" FontSize="11"><Run Text="{Binding FromText}" /><Run Text=" · " /><Run Text="{Binding SizeText}" /></TextBlock>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Status}" Margin="0,0,12,0" />
+                                                            <Button Grid.Column="2" Content="Kabul" Style="{StaticResource PrimaryButton}" Height="30" Padding="12,0" Margin="0,0,6,0" Command="{Binding DataContext.AcceptOfferCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                            <Button Grid.Column="3" Content="Reddet" Style="{StaticResource SecondaryButton}" Height="30" Padding="12,0" Command="{Binding DataContext.RejectOfferCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
                                         </StackPanel>
                                     </Border>
                                 </Grid>
+                                <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Clipboard Paylaşımı" FontSize="18" FontWeight="SemiBold" />
+                                        <TextBlock Text="Açık talep üzerine, tek seferlik metin senkronizasyonu. Arka planda otomatik akış yoktur." Foreground="#5C677A" Margin="0,6,0,14" />
+                                        <Border BorderBrush="#C9D1DE" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,0,0,12" MinHeight="60">
+                                            <TextBlock Text="{Binding ClipboardPreviewText}" Foreground="#14233B" TextWrapping="Wrap" />
+                                        </Border>
+                                        <WrapPanel>
+                                            <Button Style="{StaticResource PrimaryButton}" Content="Clipboard'ı Gönder" Command="{Binding SendClipboardCommand}" Margin="0,0,10,0" />
+                                            <Button Style="{StaticResource SecondaryButton}" Content="Karşı Pano" Command="{Binding ReceiveClipboardCommand}" Margin="0,0,10,0" />
+                                            <TextBlock Text="{Binding ClipboardStatusText}" Foreground="#5C677A" VerticalAlignment="Center" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
 
                             <StackPanel Visibility="{Binding SecurityVisibility}">
@@ -503,10 +570,10 @@
                                     </StackPanel>
                                 </Border>
                                 <TextBlock Text="İstenen izinler" FontWeight="SemiBold" />
-                                <CheckBox Content="Ekran görüntüleme" IsChecked="True" Margin="0,12,0,0" />
-                                <CheckBox Content="Uzaktan kontrol" IsChecked="False" Margin="0,8,0,0" />
-                                <CheckBox Content="Dosya aktarımı" IsChecked="False" Margin="0,8,0,0" />
-                                <CheckBox Content="Clipboard" IsChecked="False" Margin="0,8,0,0" />
+                                <CheckBox Content="Ekran görüntüleme" IsChecked="True" IsEnabled="False" Margin="0,12,0,0" />
+                                <CheckBox Content="Uzaktan kontrol (fare/klavye)" IsChecked="{Binding GrantRemoteControl}" Margin="0,8,0,0" />
+                                <CheckBox Content="Dosya aktarımı" IsChecked="{Binding GrantFileTransfer}" Margin="0,8,0,0" />
+                                <CheckBox Content="Clipboard paylaşımı" IsChecked="{Binding GrantClipboard}" Margin="0,8,0,0" />
                                 <Border Background="#FFFBEB" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,18,0,18">
                                     <TextBlock Text="Bu isteği onaylarsanız karşı taraf ekranınızı görebilir. Uzaktan kontrol ayrı izin gerektirir." TextWrapping="Wrap" Foreground="#7C4A03" />
                                 </Border>
