@@ -200,6 +200,96 @@ public partial class ShellViewModel : ObservableObject
         _viewer.ClipboardReceived += text => WpfApplication.Current.Dispatcher.Invoke(() => HandleClipboardReceived(text, fromHostSide: false));
 
         _ = StartHostIfNeededAsync();
+        _ = ApplyUiTestIfConfiguredAsync();
+    }
+
+    public sealed class UiTestConfig
+    {
+        public string Mode { get; set; } = "";
+        public string? ConnectCode { get; set; }
+        public string[]? SendFiles { get; set; }
+        public bool AutoApprove { get; set; }
+        public bool AllowFileTransfer { get; set; }
+        public bool AllowClipboard { get; set; }
+        public string? DebugLogPath { get; set; }
+    }
+
+    public static UiTestConfig? UiTest { get; set; }
+
+    private async Task ApplyUiTestIfConfiguredAsync()
+    {
+        var cfg = UiTest;
+        if (cfg is null) return;
+        void Log(string msg) => App.UiTestLog(cfg, msg);
+        Log($"ApplyUiTestIfConfiguredAsync: Mode={cfg.Mode} AutoApprove={cfg.AutoApprove} AllowFile={cfg.AllowFileTransfer} AllowClip={cfg.AllowClipboard}");
+
+        if (cfg.Mode == "host" && cfg.AutoApprove)
+        {
+            _host.IncomingRequest += req =>
+            {
+                Log($"IncomingRequest fired (background): viewer={req.ViewerName}");
+                _ = WpfApplication.Current.Dispatcher.InvokeAsync(async () =>
+                {
+                    Log($"IncomingRequest UI thread entered: viewer={req.ViewerName}");
+                    await Task.Delay(200);
+                    GrantFileTransfer = cfg.AllowFileTransfer;
+                    GrantClipboard = cfg.AllowClipboard;
+                    Log("Calling ApproveSession");
+                    await ApproveSession();
+                    Log($"ApproveSession done. _sessionId={_sessionId} _fileTransferPolicy.IsAllowed={_fileTransferPolicy.IsAllowed}");
+                });
+            };
+            IncomingOffers.CollectionChanged += (s, e) =>
+            {
+                if (e.NewItems is null) return;
+                foreach (IncomingOfferItem offer in e.NewItems)
+                {
+                    Log($"IncomingOffer auto-accept: {offer.FileName} {offer.SizeBytes}B id={offer.TransferId}");
+                    _ = WpfApplication.Current.Dispatcher.InvokeAsync(() => AcceptOffer(offer));
+                }
+            };
+            _host.FileOfferReceived += offer => Log($"[host] FileOfferReceived: {offer.FileName} {offer.SizeBytes} isFromHost={offer.IsFromHost}");
+            _host.FileChunkReceived += c => Log($"[host] FileChunkReceived: id={c.TransferId} idx={c.ChunkIndex} size={c.Data.Length}");
+            _host.FileCompleteReceived += id => Log($"[host] FileCompleteReceived: {id}");
+            _host.FileDecisionReceived += d => Log($"[host] FileDecisionReceived: {d.TransferId} accepted={d.Accepted}");
+        }
+        if (cfg.Mode == "viewer-send" && cfg.SendFiles is { Length: > 0 } && !string.IsNullOrWhiteSpace(cfg.ConnectCode))
+        {
+            ConnectCode = cfg.ConnectCode;
+            foreach (var path in cfg.SendFiles)
+            {
+                if (File.Exists(path)) LocalFiles.Add(new LocalFileEntry(path));
+            }
+            Log($"viewer-send: ConnectCode={ConnectCode}, LocalFiles count={LocalFiles.Count}");
+
+            // Bu method zaten UI thread'inde (constructor MainWindow tarafından çağrılıyor).
+            // await'ler SynchronizationContext ile UI thread'inde devam eder.
+            await Task.Delay(800);
+            Log("Calling RequestSession (direct, no Dispatcher.InvokeAsync)");
+            try
+            {
+                await RequestSession();
+                Log($"RequestSession completed. _sessionId={_sessionId} FT.IsAllowed={_fileTransferPolicy.IsAllowed}");
+            }
+            catch (Exception ex)
+            {
+                Log($"RequestSession threw: {ex.GetType().Name}: {ex.Message}");
+            }
+
+            while (_sessionId is null || !_fileTransferPolicy.IsAllowed)
+            {
+                await Task.Delay(150);
+            }
+            await Task.Delay(200);
+            Log("Calling SendSelected");
+            SendSelectedCommand.Execute(null);
+            Log("SendSelected called");
+
+            _viewer.FileOfferReceived += offer => Log($"[viewer] FileOfferReceived: {offer.FileName} {offer.SizeBytes} isFromHost={offer.IsFromHost}");
+            _viewer.FileDecisionReceived += d => Log($"[viewer] FileDecisionReceived: {d.TransferId} accepted={d.Accepted}");
+            _viewer.FileChunkReceived += c => Log($"[viewer] FileChunkReceived: id={c.TransferId} idx={c.ChunkIndex} size={c.Data.Length}");
+            _viewer.FileCompleteReceived += id => Log($"[viewer] FileCompleteReceived: {id}");
+        }
     }
 
     [RelayCommand]
@@ -247,19 +337,35 @@ public partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private async Task RequestSession()
     {
+        var cfg = UiTest;
+        void Log(string m) => App.UiTestLog(cfg, m);
+        Log($"[RS] entered RequestSession, cfg-null={cfg is null}, _sessionId-before={_sessionId}");
         try
         {
             ViewerSurfaceText = "Host kullanıcısının onayı bekleniyor.";
             MetricsText = "Host kullanıcısının onayı bekleniyor.";
             SecurityEvents.Insert(0, "14:32  Info     SESSION_REQUESTED          Bağlantı isteği gönderildi");
+            Log($"[RS] ConnectCode={ConnectCode}");
             await _viewer.ConnectAsync(ConnectCode, CancellationToken.None);
+            Log($"[RS] after ConnectAsync. grants RC={_viewer.RemoteControlGranted} FT={_viewer.FileTransferGranted} CB={_viewer.ClipboardGranted}");
+            _sessionId = Guid.NewGuid();
+            _controlPolicy.Enable(_sessionId.Value, _viewer.RemoteControlGranted);
+            _fileTransferPolicy.Enable(_sessionId.Value, _viewer.FileTransferGranted);
+            _clipboardPolicy.Enable(_sessionId.Value, _viewer.ClipboardGranted);
+            Log($"[RS] policies enabled. _sessionId={_sessionId} FT.IsAllowed={_fileTransferPolicy.IsAllowed}");
+            RemoteControlStatusText = _viewer.RemoteControlGranted ? "Açık" : "Kapalı";
+            FileTransferStatusText = _viewer.FileTransferGranted ? "Açık" : "Kapalı";
+            ClipboardStatusText = _viewer.ClipboardGranted ? "Açık" : "Kapalı";
         }
         catch (Exception ex)
         {
+            Log($"[RS] EXCEPTION: {ex.GetType().Name}: {ex.Message}");
+            if (ex.InnerException is not null) Log($"[RS]   Inner: {ex.InnerException.Message}");
             ViewerSurfaceText = "Bağlantı kurulamadı";
             MetricsText = $"Hata: {ex.Message}";
             SecurityEvents.Insert(0, $"14:32  Warning  CONNECTION_FAILED          {ex.Message}");
         }
+        Log($"[RS] exiting. _sessionId={_sessionId} FT.IsAllowed={_fileTransferPolicy.IsAllowed}");
     }
 
     [RelayCommand]
@@ -363,7 +469,9 @@ public partial class ShellViewModel : ObservableObject
 
     private async Task SendFileAsync(LocalFileEntry file)
     {
-        if (_sessionId is null) return;
+        var cfg = UiTest;
+        void Log(string m) => App.UiTestLog(cfg, m);
+        if (_sessionId is null) { Log($"[SFA] SKIP: _sessionId null"); return; }
         var transferId = Guid.NewGuid().ToString("N");
         var item = new TransferQueueItem(transferId, file.DisplayName, file.SizeBytes, "Giden")
         {
@@ -371,6 +479,7 @@ public partial class ShellViewModel : ObservableObject
             LocalPath = file.FilePath
         };
         TransferQueue.Insert(0, item);
+        Log($"[SFA] queued transferId={transferId} file={file.DisplayName} size={file.SizeBytes} queue.Count={TransferQueue.Count}");
         SecurityEvents.Insert(0, $"14:32  Info     FILE_OFFER_SENT            {file.DisplayName} gönderim için teklif edildi");
 
         try
@@ -379,31 +488,35 @@ public partial class ShellViewModel : ObservableObject
                 await _host.SendFileOfferAsync(transferId, file.DisplayName, file.SizeBytes, CancellationToken.None);
             else
                 await _viewer.SendFileOfferAsync(transferId, file.DisplayName, file.SizeBytes, CancellationToken.None);
+            Log($"[SFA] SendFileOfferAsync OK. waiting for decision...");
         }
         catch (Exception ex)
         {
             item.Status = "Hata";
+            Log($"[SFA] EXCEPTION: {ex.Message}");
             SecurityEvents.Insert(0, $"14:32  Warning  FILE_OFFER_FAILED          {ex.Message}");
         }
     }
 
     private void HandleFileDecision(IncomingFileDecision decision, bool fromHostSide)
     {
-        if (fromHostSide != IsHostSide)
+        // FileDecisionReceived sadece transferi gönderen tarafta tetiklenir (karşı tarafın FILE_ACCEPT/REJECT mesajı).
+        // Her ShellViewModel instance'ı sadece bir tarafta aktiftir (host veya viewer), bu yüzden guard gereksiz.
+        var cfg = UiTest;
+        void Log(string m) => App.UiTestLog(cfg, m);
+        Log($"[HFD] entered: fromHostSide={fromHostSide} IsHostSide={IsHostSide} decision.TransferId={decision.TransferId} accepted={decision.Accepted} queue.Count={TransferQueue.Count}");
+        var outgoing = TransferQueue.FirstOrDefault(t => t.TransferId == decision.TransferId);
+        if (outgoing is null) { Log($"[HFD] outgoing NULL, transferId={decision.TransferId}"); return; }
+        if (decision.Accepted)
         {
-            // decision is for a transfer I sent
-            var outgoing = TransferQueue.FirstOrDefault(t => t.TransferId == decision.TransferId);
-            if (outgoing is null) return;
-            if (decision.Accepted)
-            {
-                outgoing.Status = "Aktarılıyor";
-                _ = StreamOutgoingFileAsync(outgoing);
-            }
-            else
-            {
-                outgoing.Status = "Reddedildi";
-                SecurityEvents.Insert(0, $"14:32  Info     FILE_REJECTED              {outgoing.FileName} reddedildi");
-            }
+            outgoing.Status = "Aktarılıyor";
+            Log($"[HFD] starting StreamOutgoingFileAsync for {outgoing.FileName}");
+            _ = StreamOutgoingFileAsync(outgoing);
+        }
+        else
+        {
+            outgoing.Status = "Reddedildi";
+            SecurityEvents.Insert(0, $"14:32  Info     FILE_REJECTED              {outgoing.FileName} reddedildi");
         }
     }
 
@@ -449,7 +562,7 @@ public partial class ShellViewModel : ObservableObject
     private void HandleIncomingOffer(IncomingFileOffer offer, bool fromHostSide)
     {
         if (_sessionId is null || !_fileTransferPolicy.IsAllowed) return;
-        if (fromHostSide == IsHostSide) return; // we sent it, not us
+        // FileOfferReceived sadece alan tarafta tetiklenir; guard gereksiz
 
         var item = new IncomingOfferItem(offer.TransferId, offer.FileName, offer.SizeBytes, offer.IsFromHost);
         IncomingOffers.Insert(0, item);
@@ -516,7 +629,7 @@ public partial class ShellViewModel : ObservableObject
 
     private void HandleIncomingChunk(FileChunkPayload chunk, bool fromHostSide)
     {
-        if (fromHostSide == IsHostSide) return; // we sent it
+        // FileChunkReceived sadece alan tarafta tetiklenir
         if (!_incomingFiles.TryGetValue(chunk.TransferId, out var stream)) return;
         try
         {
@@ -536,7 +649,7 @@ public partial class ShellViewModel : ObservableObject
 
     private void HandleFileComplete(string transferId, bool fromHostSide)
     {
-        if (fromHostSide == IsHostSide) return;
+        // FileCompleteReceived sadece alan tarafta tetiklenir
         if (_incomingFiles.TryGetValue(transferId, out var stream))
         {
             stream.Flush();
@@ -594,7 +707,7 @@ public partial class ShellViewModel : ObservableObject
 
     private void HandleClipboardReceived(string text, bool fromHostSide)
     {
-        if (fromHostSide == IsHostSide) return;
+        // ClipboardReceived sadece alan tarafta tetiklenir
         if (text == "__REQUEST_PEER_CLIPBOARD__")
         {
             // Karşı taraf benim panomu istedi
